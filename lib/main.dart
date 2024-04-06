@@ -1,125 +1,240 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:math';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'Block Breaker Game',
+      home: GameScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class GameScreen extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _GameScreenState createState() => _GameScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _GameScreenState extends State<GameScreen> {
+  double ballX = 50;
+  double ballY = 50;
+  double ballSpeed = 15;
+  double ballDirectionX = 1;
+  double ballDirectionY = 1;
+  double paddleX = 160;
+  double paddleWidth = 100;
+  double paddleHeight = 10;
+  List<Rect> blocks = [];
+  bool gameStarted = false;
+  int score = 0;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  static const int rowCount = 5;
+  static const int columnCount = 5;
+  static const double blockWidth = 60;
+  static const double blockHeight = 20;
+  static const double blockSpacing = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeBlocks();
+    _startGame();
+  }
+
+  void _initializeBlocks() {
+    for (int i = 0; i < rowCount; i++) {
+      for (int j = 0; j < columnCount; j++) {
+        double x = j * (blockWidth + blockSpacing);
+        double y = i * (blockHeight + blockSpacing);
+        blocks.add(Rect.fromLTWH(x, y, blockWidth, blockHeight));
+      }
+    }
+  }
+
+  void _startGame() {
+    gameStarted = true;
+    Timer.periodic(Duration(milliseconds: 50), (timer) {
+      setState(() {
+        ballX += ballDirectionX * ballSpeed;
+        ballY += ballDirectionY * ballSpeed;
+
+        if (ballX <= 0 || ballX >= MediaQuery.of(context).size.width - 20) {
+          ballDirectionX *= -1;
+        }
+
+        if (ballY <= 0) {
+          ballDirectionY *= -1;
+        }
+
+        if (ballY >= MediaQuery.of(context).size.height - 20) {
+          gameStarted = false;
+          timer.cancel();
+          _showGameOverDialog();
+        }
+
+        // if (ballY >= MediaQuery.of(context).size.height - 40 &&
+        //     ballX >= paddleX &&
+        //     ballX <= paddleX + paddleWidth) {
+        //   ballDirectionY *= -1;
+        // }
+        if (ballY >= MediaQuery.of(context).size.height - 40 - paddleHeight){
+          debugPrint("hit");
+        }
+        if (ballY >= MediaQuery.of(context).size.height - 40 - paddleHeight - 80 &&
+            ballX >= paddleX &&
+            ballX <= paddleX + paddleWidth) {
+          ballDirectionY *= -1;
+        }
+
+        for (int i = 0; i < blocks.length; i++) {
+          if (blocks[i].contains(Offset(ballX, ballY))) {
+            ballDirectionY *= -1;
+            setState(() {
+              blocks.removeAt(i);
+              score++;
+            });
+            break;
+          }
+        }
+
+        if (blocks.isEmpty) {
+          gameStarted = false;
+          timer.cancel();
+          _showWinDialog();
+        }
+      });
     });
+  }
+
+  void _showGameOverDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Game Over'),
+          content: Text('Your score: $score'),
+          actions: [
+            TextButton(
+              child: Text('Play Again'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {
+                  ballX = 50;
+                  ballY = 50;
+                  paddleX = 160;
+                  blocks.clear();
+                  _initializeBlocks();
+                  score = 0;
+                  gameStarted = false;
+                  _startGame();
+                });
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showWinDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('You Win!'),
+          content: Text('Your score: $score'),
+          actions: [
+            TextButton(
+              child: Text('Play Again'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {
+                  ballX = 50;
+                  ballY = 50;
+                  paddleX = 160;
+                  blocks.clear();
+                  _initializeBlocks();
+                  score = 0;
+                  gameStarted = false;
+                  _startGame();
+                });
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: Text('Block Breaker'),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'ボタンが押されました:',
+      body: GestureDetector(
+        onHorizontalDragUpdate: (details) {
+          setState(() {
+            paddleX += details.delta.dx;
+            paddleX = max(0, min(paddleX, MediaQuery.of(context).size.width - paddleWidth));
+          });
+        },
+        child: Stack(
+          children: [
+            Container(
+              color: Colors.white,
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Positioned(
+              top: ballY,
+              left: ballX,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 20,
+              left: paddleX,
+              child: Container(
+                width: paddleWidth,
+                height: paddleHeight,
+                color: Colors.blue,
+              ),
+            ),
+            for (var block in blocks)
+              Positioned(
+                top: block.top,
+                left: block.left,
+                child: Container(
+                  width: block.width,
+                  height: block.height,
+                  color: Colors.green,
+                ),
+              ),
+            Positioned(
+              top: 20,
+              right: 20,
+              child: Text(
+                'Score: $score',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
